@@ -354,6 +354,7 @@ class TestCUDA(JitTestCase):
                 tensor2 = torch.mm(tensor1, tensor1).to("cuda")
             s.synchronize()
             e_tok.record(s)
+            e_tok.synchronize()
 
             if not s.query():
                 return -1.0
@@ -377,8 +378,9 @@ class TestCUDA(JitTestCase):
             tensor1 = torch.rand(1000000000, 1000000000, device = "cuda")
             with torch.jit.cuda.stream(s):
                 tensor = torch.mm(tensor1, tensor1).to("cuda")
-            e_tok.synchronize()
             s.record_event(e_tok)
+            e_tok.synchronize()
+            s.synchronize()
 
             if not s.query():
                 return -1.0

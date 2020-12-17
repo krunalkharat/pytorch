@@ -4,6 +4,8 @@ This is similar to API's available in the eager mode
 :ref:`cuda-semantics` has more details about working with CUDA.
 """
 
+# type: ignore
+
 import torch
 from typing import Optional, Any
 from torch import device as _device
