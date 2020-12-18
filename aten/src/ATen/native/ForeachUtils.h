@@ -88,7 +88,13 @@ bool has_same_attributes(Device expected_device, TensorList tensors) {
   return true;
 }
 
-bool will_promote_tensor(const Tensor& tensor, Scalar scalar) {
+bool will_promote_tensor(const Tensor& tensor, Scalar scalar, bool division_op = false) {
+  // In case of division, integer inputs will result in float
+  if (division_op) {
+    if (at::isIntegralType(tensor.scalar_type(), /*includeBool*/ true)) {
+      return true;
+    }
+  }
   auto result_dtype = at::result_type(tensor, scalar);
   return result_dtype != tensor.scalar_type();
 }
@@ -98,6 +104,7 @@ bool can_use_fast_route(TensorList tensors) {
   return false;
 #else
   auto expected_device = tensors[0].device();
+
   for (auto t : tensors) {
     if (!has_same_attributes(expected_device, {t})) {
       return false;
@@ -108,7 +115,7 @@ bool can_use_fast_route(TensorList tensors) {
 #endif
 }
 
-bool can_use_fast_route(TensorList tensors, Scalar scalar) {
+bool can_use_fast_route(TensorList tensors, Scalar scalar, bool division_op = false) {
 #ifdef __HIP_PLATFORM_HCC__
   return false;
 #else
@@ -119,7 +126,7 @@ bool can_use_fast_route(TensorList tensors, Scalar scalar) {
       return false;
     }
 
-    if (will_promote_tensor(t, scalar)) {
+    if (will_promote_tensor(t, scalar, division_op)) {
       return false;
     }
   }
@@ -128,12 +135,17 @@ bool can_use_fast_route(TensorList tensors, Scalar scalar) {
 #endif
 }
 
-bool can_use_fast_route(TensorList tensors, ArrayRef<Scalar> scalars) {
+bool can_use_fast_route(TensorList tensors, ArrayRef<Scalar> scalars, bool division_op = false) {
 #ifdef __HIP_PLATFORM_HCC__
   return false;
 #else
   for (int i = 0; i < tensors.size(); i++) {
-    if (will_promote_tensor(tensors[i], scalars[i])) {
+    if (will_promote_tensor(tensors[i], scalars[i], division_op)) {
+      return false;
+    }
+
+    // Complex scalar list is not supported.
+    if (scalars[i].isComplex() || at::isComplexType(tensors[i].scalar_type())) {
       return false;
     }
   }
@@ -142,7 +154,7 @@ bool can_use_fast_route(TensorList tensors, ArrayRef<Scalar> scalars) {
 #endif
 }
 
-bool can_use_fast_route(TensorList tensors1, TensorList tensors2) {
+bool can_use_fast_route(TensorList tensors1, TensorList tensors2, bool division_op = false) {
 #ifdef __HIP_PLATFORM_HCC__
   return false;
 #else
@@ -150,6 +162,13 @@ bool can_use_fast_route(TensorList tensors1, TensorList tensors2) {
   for (int64_t i = 0; i < tensors1.size(); i++) {
     if (!has_same_attributes(expected_device, {tensors1[i], tensors2[i]})) {
       return false;
+    }
+
+    // In case of division, integer inputs will result in float
+    if (division_op) {
+      if (at::isIntegralType(tensors1[i].scalar_type(), /*includeBool*/ true)) {
+        return false;
+      }
     }
   }
 
